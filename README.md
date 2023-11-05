@@ -13,3 +13,10 @@ Autoencoder-based Predictors
   * sample setting file: **neu_VED_beta.json**
   * sample run with Epoch = 100 (tensorboard images):
  ![TensorBoard_2023-10-02_17 24 30](https://github.com/rondelion/AEDPredictor/assets/11871187/4e366e0d-42d2-4f1e-8656-ff6024599005)
+***
+## Perceptron-based Predictor
+* **SimplePredictor.py**
+* **train_SimplePredictor.py**
+  * uses dataset: **RotateMNIST.py**: see above.
+  * sample setting file: **train_SimplePredictor.json**
+
