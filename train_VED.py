@@ -12,7 +12,7 @@ from torch import cuda
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-import torch.nn.utils as utils
+from torch import optim
 
 import torchvision
 
@@ -22,65 +22,32 @@ from RotateMNIST import RotatingMNIST
 from neu_VED import VariationalEncoderDecoder
 
 
-def train(args, model, device, train_loader, optimizer, epoch, writer):
+def train(args, ved, train_loader, optimizer, epoch):
     """Trains the model for one epoch."""
-    model.train()
+    ved.model.train()
     # loss of the epoch
     train_loss = 0.0
-    train_recon_loss = 0.0
-    train_kld_loss = 0.0
 
     for batch_idx, data in enumerate(train_loader):
         # input_0 = data[0]           # main input t=0
-        input_shape = data[0].size()
-        input_1 = data[-1]          # main input t=1
-        # operation = data[1:-1]     # another input
+        # input_shape = data[0].size()
+        input_1 = data[-1]            # main input t=1
+        # operation = data[1:-1]      # another input
         input_with_operation = data[1]
-        optimizer.zero_grad()
-        # forward pass
-        x_hat, z_mean, z_logvar = model(input_with_operation, None)
-        # loss
-        loss_dict = model.loss(input_1, x_hat, z_mean, z_logvar)
-
-        loss = loss_dict["loss"]
-        recon_loss = loss_dict["recon_loss"]
-        kld_loss = loss_dict["kld_loss"]
-
-        # backward pass
-        optimizer.zero_grad()
-        loss.backward()
-
-        # The following is inserted to prevent 'nan' output
-        # Set the maximum norm value to 1.0
-        max_norm = 1.0
-        # Calculate the norm of the gradients
-        utils.clip_grad_norm_(model.parameters(), max_norm)
-
-        optimizer.step()
+        loss_dict = ved.learn(input_with_operation, input_1, optimizer)
 
         # log losses
+        loss = loss_dict["loss"]
         train_loss += loss.item()
-        train_recon_loss += recon_loss.item()
-        train_kld_loss += kld_loss.item()
 
         if batch_idx % args.log_interval == 0:
             print('Train Epoch: {} \tBatch: {}\tLoss: {:.6f}'.format(epoch, batch_idx, train_loss / args.log_interval))
-            writer.add_image('train/inputs', torchvision.utils.make_grid(torch.reshape(input_1, input_shape)), batch_idx)
-            writer.add_image('train/outputs', torchvision.utils.make_grid(torch.reshape(x_hat, input_shape)), batch_idx)
-            writer.add_scalars('train/loss',
-                               {'train_loss': loss.item(),
-                                'train_recon_loss': recon_loss.item(),
-                                'train_kld_loss': kld_loss.item()},
-                               batch_idx)
-            train_loss = 0.0
-            train_recon_loss = 0.0
-            train_kld_loss = 0.0
 
         if args.dry_run:
             break
 
 
-def test(model, device, test_loader, writer):
+def test(model, epoch, test_loader, writer):
     """Evaluates the trained model."""
     model.eval()
     # loss of the epoch
@@ -109,19 +76,17 @@ def test(model, device, test_loader, writer):
             test_loss += loss.item()
             test_recon_loss += recon_loss.item()
             test_kld_loss += kld_loss.item()
-
-            writer.add_image('test/inputs', torchvision.utils.make_grid(torch.reshape(input_1, input_shape)), batch_idx)
-            writer.add_image('test/outputs', torchvision.utils.make_grid(torch.reshape(x_hat, input_shape)), batch_idx)
-            writer.add_scalars('test/loss',
-                               {'test_loss': loss.item(),
-                                'test_recon_loss': recon_loss.item(),
-                                'test_kld_loss': kld_loss.item()},
-                               batch_idx)
-
             cnt += 1
 
         test_loss /= cnt
-        writer.add_scalar('test/avg_loss', test_loss, 0)
+        writer.add_image('train_VED/test/inputs', torchvision.utils.make_grid(torch.reshape(input_1, input_shape)), epoch)
+        writer.add_image('train_VED/test/outputs', torchvision.utils.make_grid(torch.reshape(x_hat, input_shape)), epoch)
+        writer.add_scalars('train_VED/test/loss',
+                           {'test_loss': test_loss / cnt,
+                            'test_recon_loss': test_recon_loss / cnt,
+                            'test_kld_loss': test_kld_loss / cnt},
+                           epoch)
+
         print('\nTest set: Average loss: {:.4f}\n'.format(test_loss))
 
 
@@ -192,7 +157,8 @@ def main():
     train_loader, test_loader = set_loaders(config['dataset'], **kwargs)
 
     if config['model']['type'] == 'neu_beta':
-        model = VariationalEncoderDecoder.create(config['model'])
+        ved = VariationalEncoderDecoder(config['model'])
+        model = ved.model
         config['model']["model"] = model
     else:
         raise NotImplementedError('Model not supported: ' + str(config['model']))
@@ -201,8 +167,8 @@ def main():
                      "(model.parameters(), lr=config['model']['learning_rate'])")
 
     for epoch in range(1, args.epochs + 1):
-        train(args, model, device, train_loader, optimizer, epoch, writer)
-        test(model, device, test_loader, writer)
+        train(args, ved, train_loader, optimizer, epoch)
+        test(model, epoch, test_loader, writer)
 
     if args.save_model is not None:
         torch.save(model.state_dict(), args.save_model)

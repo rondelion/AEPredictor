@@ -12,10 +12,13 @@ from torch.nn import functional
 from neu_vae.models import EncoderFactory
 from neu_vae.models import DecoderFactory
 from neu_vae.models import VAEFactory
-from neu_vae.models import VanillaVAE
+import torch.nn.utils as utils
 
 
-class VariationalEncoderDecoder(VanillaVAE):
+class VariationalEncoderDecoder:
+
+    def __init__(self, config):
+        self.model = self.create(config)
 
     @classmethod
     def create(cls, config):
@@ -33,7 +36,7 @@ class VariationalEncoderDecoder(VanillaVAE):
         # create decoder
         dec_kwargs = {"z_dim": config["z_dim"],
                       "hidden_dim": config["decoder_hidden_dim"],
-                      "output_dim": config["output_dim"],   # change from AutoEncoder
+                      "output_dim": config["output_dim"],  # change from AutoEncoder
                       "act_func": getattr(torch, config["decoder_act_func"]),
                       "pred_func": getattr(torch, config["decoder_pred_func"]),
                       "n_classes": n_classes}
@@ -61,3 +64,23 @@ class VariationalEncoderDecoder(VanillaVAE):
 
         return model.to(config['device'])
 
+    def learn(self, x, y, optimizer):
+        optimizer.zero_grad()
+        # forward pass
+        y_hat, z_mean, z_logvar = self.model(x, None)
+        # loss
+        loss_dict = self.model.loss(y, y_hat, z_mean, z_logvar)
+        loss = loss_dict["loss"]
+
+        # backward pass
+        optimizer.zero_grad()
+        loss.backward()
+
+        # The following is inserted to prevent 'nan' output
+        # Set the maximum norm value to 1.0
+        max_norm = 1.0
+        # Calculate the norm of the gradients
+        utils.clip_grad_norm_(self.model.parameters(), max_norm)
+
+        optimizer.step()
+        return loss_dict
