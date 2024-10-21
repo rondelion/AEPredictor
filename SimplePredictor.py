@@ -1,9 +1,7 @@
 import torch
 import torch.utils.data
 import torch.nn as nn
-from torch.nn import functional
 from torch import optim
-from functools import partial
 
 
 class SimplePredictor:
@@ -14,7 +12,10 @@ class SimplePredictor:
                                     config['hidden_dim'],
                                     config['output_dim'])
         self.predictor.optimizer = optim.Adam(self.predictor.parameters())
-        self.loss_func = nn.BCELoss()
+        if "loss_func" in config:
+            self.loss_func = eval(config["loss_func"])
+        else:
+            self.loss_func = nn.BCELoss()
 
     def learn(self, x, y):
         self.predictor.train()
@@ -30,6 +31,7 @@ class Perceptron(torch.nn.Module):
     def __init__(self, in_dim, hidden_dim, out_dim):
         super(Perceptron, self).__init__()
         self.l1 = nn.Linear(in_dim, hidden_dim)
+        self.relu = torch.nn.ReLU()
         self.l2 = nn.Linear(hidden_dim, out_dim)
         self.seq = torch.nn.Sequential(nn.Linear(in_dim, hidden_dim), nn.Sigmoid(),
                                        nn.Linear(hidden_dim, out_dim), nn.Sigmoid())
@@ -37,7 +39,7 @@ class Perceptron(torch.nn.Module):
 
     def forward(self, x):
         h = self.l1(x)
-        h = torch.relu(h)
+        h = self.relu(h)
         h = self.l2(h)
         y = torch.sigmoid(h)
         return y

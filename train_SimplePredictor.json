@@ -10,6 +10,7 @@
       "batch_size": 100,
       "input_dim": 789,
       "output_dim": 784,
-      "hidden_dim": 200
+      "hidden_dim": 200,
+      "loss_func": "nn.MSELoss()"
     }
 }
