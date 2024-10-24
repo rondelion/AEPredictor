@@ -20,3 +20,11 @@ Autoencoder-based Predictors
   * uses dataset: **RotateMNIST.py**: see above.
   * sample setting file: **train_SimplePredictor.json**
 
+## Cerenaut's Simple AE-based Predictor
+Uses [simple_autoencoder.py](https://github.com/Cerenaut/cerenaut-pt-core/blob/master/cerenaut_pt_core/components/simple_autoencoder.py) from [cerenaut-pt-core](https://github.com/Cerenaut/cerenaut-pt-core).
+
+* **train_SimpleAEPredictor.py**  
+You can use **L1** regularization for **sparseness**.
+  * uses dataset: **RotateMNIST.py**: see above.
+  * sample setting file: **AEPredictor_simple.json**
+
